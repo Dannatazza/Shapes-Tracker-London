@@ -264,8 +264,15 @@ elements.logButton.addEventListener("click", () => {
   }
 });
 
-// Initialize from server, then render
-initFromServer().finally(() => render());
+// If the page is served via file:// (e.g., opened directly), skip server fetches
+// because browsers block cross-origin requests from file:// origins.
+if (location.protocol === 'file:') {
+  // Render using embedded data and any localStorage cache
+  render();
+} else {
+  // Running over HTTP(S) — attempt to initialize from the server then render
+  initFromServer().finally(() => render());
+}
 
 function selectStore(storeId) {
   state.selectedStoreId = storeId;
