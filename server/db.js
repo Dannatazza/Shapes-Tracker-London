@@ -65,15 +65,26 @@ function getRecentLogs(recentWindowMs = 24 * 60 * 60 * 1000) {
   return db.prepare('SELECT * FROM logs WHERE loggedAt >= ? ORDER BY loggedAt DESC').all(since);
 }
 
-function insertLog(log) {
-  const stmt = db.prepare('INSERT OR IGNORE INTO logs (id, product, storeId, storeName, loggedAt) VALUES (@id, @product, @storeId, @storeName, @loggedAt)');
-  stmt.run(log);
+function existsRecentLog(product, storeId, windowMs = 15 * 60 * 1000) {
+  const since = new Date(Date.now() - windowMs).toISOString();
+  const row = db.prepare('SELECT 1 FROM logs WHERE product = ? AND storeId = ? AND loggedAt >= ? LIMIT 1').get(product, storeId, since);
+  return !!row;
 }
 
-function insertLogsBatch(logs) {
+function insertLog(log, dedupeWindowMs = 15 * 60 * 1000) {
+  // skip if a recent identical log exists
+  if (existsRecentLog(log.product, log.storeId, dedupeWindowMs)) return false;
+  const stmt = db.prepare('INSERT OR IGNORE INTO logs (id, product, storeId, storeName, loggedAt) VALUES (@id, @product, @storeId, @storeName, @loggedAt)');
+  const info = stmt.run(log);
+  return info.changes > 0;
+}
+
+function insertLogsBatch(logs, dedupeWindowMs = 15 * 60 * 1000) {
   const insert = db.prepare('INSERT OR IGNORE INTO logs (id, product, storeId, storeName, loggedAt) VALUES (@id, @product, @storeId, @storeName, @loggedAt)');
   const tx = db.transaction((items) => {
-    for (const l of items) insert.run(l);
+    for (const l of items) {
+      if (!existsRecentLog(l.product, l.storeId, dedupeWindowMs)) insert.run(l);
+    }
   });
   tx(logs);
 }
