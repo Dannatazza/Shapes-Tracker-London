@@ -1,7 +1,7 @@
 # Shapes Tracker London
 
 A community-based stock tracker for Arnott's Shapes biscuits at Waitrose and
-Morrisons stores in London.
+Morrisons stores in London. Vibe coded with love ❤️.
 
 ## How it works
 
