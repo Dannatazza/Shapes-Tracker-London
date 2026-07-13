@@ -180,9 +180,53 @@ const elements = {
   popupTemplate: document.querySelector("#popup-template"),
 };
 
-// Try to load stores and recent logs from the server. Fall back to embedded data/localStorage when unavailable.
+// Try to load stores and recent logs from a central backend.
+// Priority: Supabase (client-side) if configured via config.js, otherwise project server API (/api), else use embedded data/localStorage.
 async function initFromServer() {
+  // Helper to fetch from Supabase REST API
+  async function fetchFromSupabaseStores() {
+    const url = `${window.SUPABASE_URL}/rest/v1/stores?select=*`;
+    const headers = {
+      apikey: window.SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${window.SUPABASE_ANON_KEY}`,
+    };
+    const resp = await fetch(url, { headers });
+    if (!resp.ok) throw new Error('Supabase stores fetch failed');
+    return resp.json();
+  }
+
+  async function fetchFromSupabaseLogs() {
+    const since = new Date(Date.now() - RECENT_WINDOW_MS).toISOString();
+    // loggedAt=gte.<iso>
+    const q = `loggedAt=gte.${encodeURIComponent(since)}&order=loggedAt.desc`;
+    const url = `${window.SUPABASE_URL}/rest/v1/logs?select=*&${q}`;
+    const headers = {
+      apikey: window.SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${window.SUPABASE_ANON_KEY}`,
+    };
+    const resp = await fetch(url, { headers });
+    if (!resp.ok) throw new Error('Supabase logs fetch failed');
+    return resp.json();
+  }
+
   try {
+    if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+      // Use Supabase
+      try {
+        const [supStores, supLogs] = await Promise.all([fetchFromSupabaseStores(), fetchFromSupabaseLogs()]);
+        if (Array.isArray(supStores) && supStores.length) stores = supStores;
+        if (Array.isArray(supLogs)) {
+          state.logs = supLogs.map((l) => ({ ...l, loggedAt: l.loggedAt }));
+          saveLogs(state.logs);
+          updateRecentLogsCache();
+        }
+        return;
+      } catch (e) {
+        console.warn('Supabase fetch failed, falling back to server API', e);
+      }
+    }
+
+    // fallback to server endpoints (when hosted with our Express server)
     const storesResp = await fetch('/api/stores');
     if (storesResp.ok) {
       const serverStores = await storesResp.json();
@@ -345,18 +389,39 @@ async function logAvailability(storeId) {
   state.logs.unshift(...newLogs);
   resetFlavourInputs();
 
-  // Try to post logs to server; fall back to localStorage when offline
-  try {
-    const resp = await fetch('/api/logs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newLogs),
-    });
+  // Try to post logs to a central backend. Prefer Supabase if configured, then project server, else fallback to localStorage.
+  let persisted = false;
+  if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+    try {
+      const url = `${window.SUPABASE_URL}/rest/v1/logs`;
+      const headers = {
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+        apikey: window.SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${window.SUPABASE_ANON_KEY}`,
+      };
+      const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(newLogs) });
+      if (!resp.ok) throw new Error('supabase insert failed');
+      persisted = true;
+    } catch (e) {
+      console.warn('Supabase insert failed, falling back to server/local', e);
+    }
+  }
 
-    if (!resp.ok) throw new Error('server error');
-  } catch (err) {
-    // server failed, persist locally
-    saveLogs(state.logs);
+  if (!persisted) {
+    try {
+      const resp = await fetch('/api/logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newLogs),
+      });
+
+      if (!resp.ok) throw new Error('server error');
+      persisted = true;
+    } catch (err) {
+      // server failed, persist locally
+      saveLogs(state.logs);
+    }
   }
 
   // keep local cache up to date
