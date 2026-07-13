@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shapes Tracker London</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Community availability tracker</p>
+        <h1>Shapes Tracker London</h1>
+        <p class="intro">
+          Track the availability of Arnott's Shapes biscuits in Chicken, BBQ,
+          and Pizza flavours. Stores show as in stock when someone has logged
+          any flavour within the last 24 hours.
+        </p>
+      </div>
+      <aside class="product-card">
+        <p class="eyebrow">Tracked products</p>
+        <h2>Arnott's Shapes</h2>
+        <p class="helper-text">Supported flavours: Chicken, BBQ, and Pizza.</p>
+      </aside>
+    </header>
+
+    <main class="layout">
+      <section class="map-panel" aria-label="London supermarket map">
+        <div id="map"></div>
+      </section>
+
+      <aside class="sidebar" aria-label="Store availability details">
+        <section class="status-card">
+          <p class="eyebrow">Availability summary</p>
+          <h2>Arnott's Shapes flavours</h2>
+          <div class="stats">
+            <div>
+              <strong id="in-stock-count">0</strong>
+              <span>stores with recent logs</span>
+            </div>
+            <div>
+              <strong id="store-count">0</strong>
+              <span>stores</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="status-card selected-card">
+          <p class="eyebrow">Selected store</p>
+          <h2 id="selected-store-name">Choose a store</h2>
+          <p id="selected-store-address" class="muted">
+            Pick any marker on the map to log availability.
+          </p>
+          <p id="selected-store-status" class="pill pill-neutral">No store selected</p>
+          <fieldset id="flavour-fieldset" class="flavour-fieldset" disabled>
+            <legend>Which flavours are in stock?</legend>
+            <label>
+              <input type="checkbox" name="flavour" value="Arnott's Shapes Chicken" />
+              <span class="flavour-swatch flavour-swatch-chicken" aria-hidden="true"></span>
+              Chicken
+            </label>
+            <label>
+              <input type="checkbox" name="flavour" value="Arnott's Shapes BBQ" />
+              <span class="flavour-swatch flavour-swatch-bbq" aria-hidden="true"></span>
+              BBQ
+            </label>
+            <label>
+              <input type="checkbox" name="flavour" value="Arnott's Shapes Pizza" />
+              <span class="flavour-swatch flavour-swatch-pizza" aria-hidden="true"></span>
+              Pizza
+            </label>
+          </fieldset>
+          <button id="log-button" type="button" disabled>Log selected flavours as available</button>
+        </section>
+      </aside>
+    </main>
+
+    <template id="popup-template">
+      <article class="popup">
+        <strong data-store-name></strong>
+        <span data-store-address></span>
+        <span data-store-status></span>
+        <div data-store-flavours></div>
+        <button type="button" data-log-button>Select flavours to log</button>
+      </article>
+    </template>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
