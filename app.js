@@ -210,6 +210,7 @@ async function initFromServer() {
 
   try {
     if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+      console.log("Attempting Supabase INSERT to", window.SUPABASE_URL + "/rest/v1/logs");
       // Use Supabase
       try {
         const [supStores, supLogs] = await Promise.all([fetchFromSupabaseStores(), fetchFromSupabaseLogs()]);
@@ -400,6 +401,7 @@ async function logAvailability(storeId) {
   // Try to post logs to a central backend. Prefer Supabase if configured, then project server, else fallback to localStorage.
   let persisted = false;
   if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+      console.log("Attempting Supabase INSERT to", window.SUPABASE_URL + "/rest/v1/logs");
     try {
       const url = `${window.SUPABASE_URL}/rest/v1/logs`;
       const headers = {
@@ -409,7 +411,7 @@ async function logAvailability(storeId) {
               };
       const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(newLogs) });
       if (!resp.ok) throw new Error('supabase insert failed');
-      persisted = true;
+      console.log("Supabase INSERT succeeded!"); persisted = true;
     } catch (e) {
       console.warn('Supabase insert failed, falling back to server/local', e);
     }
