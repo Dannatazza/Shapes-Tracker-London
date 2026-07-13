@@ -240,6 +240,21 @@ stores.forEach((store) => {
     if (popup) popup.setContent(createPopup(store));
   });
 
+  // Safari sometimes doesn't bubble clicks from inner divs to the marker.
+  // Attach a click handler directly to the rendered marker element when it's added to the map.
+  marker.on('add', () => {
+    const el = marker.getElement();
+    if (el) {
+      const inner = el.querySelector('.store-marker');
+      if (inner) {
+        inner.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          selectStore(store.id);
+        });
+      }
+    }
+  });
+
   state.markers.set(store.id, marker);
 });
 
