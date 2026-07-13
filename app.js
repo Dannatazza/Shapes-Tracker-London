@@ -248,7 +248,11 @@ stores.forEach((store) => {
       const inner = el.querySelector('.store-marker');
       if (inner) {
         inner.addEventListener('click', (ev) => {
+          console.info('marker-inner clicked', store.id);
           ev.stopPropagation();
+          // visual debug flash
+          inner.classList.add('debug-clicked');
+          setTimeout(() => inner.classList.remove('debug-clicked'), 400);
           selectStore(store.id);
         });
       }
@@ -275,6 +279,7 @@ if (location.protocol === 'file:') {
 }
 
 function selectStore(storeId) {
+  console.info('selectStore called', storeId);
   state.selectedStoreId = storeId;
   resetFlavourInputs();
   render();

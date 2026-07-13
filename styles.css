@@ -318,6 +318,11 @@ h2 {
   background: var(--green);
 }
 
+/* Debug helper to highlight clicked markers during troubleshooting */
+.debug-clicked {
+  outline: 3px solid rgba(255, 255, 0, 0.9);
+  transform: scale(1.08);
+}
 @media (max-width: 58rem) {
   .hero,
   .layout {
