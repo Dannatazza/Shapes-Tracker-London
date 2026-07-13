@@ -381,12 +381,21 @@ async function logAvailability(storeId) {
   const newLogs = selectedProducts.map((product) => ({
     id: `${storeId}-${product}-${Date.now()}`,
     product,
+    storeid: storeId,
+    storename: store.name,
+    loggedat: loggedAt,
+  }));
+
+  // For local state, use camelCase
+  const logsForState = selectedProducts.map((product) => ({
+    id: `${storeId}-${product}-${Date.now()}`,
+    product,
     storeId,
     storeName: store.name,
     loggedAt,
   }));
 
-  state.logs.unshift(...newLogs);
+  state.logs.unshift(...logsForState);
   resetFlavourInputs();
 
   // Try to post logs to a central backend. Prefer Supabase if configured, then project server, else fallback to localStorage.
