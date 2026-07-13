@@ -7,7 +7,7 @@ console.log('✓ Supabase config loaded:', window.SUPABASE_URL);
 const RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const STORAGE_KEY = "london-supermarket-stock-logs";
 const LEGACY_STORAGE_KEY = "waitrose-london-stock-logs";
-const PRODUCTS = [
+
 // Verify config.js loaded before using Supabase credentials
 if (typeof window.SUPABASE_URL === 'undefined' || typeof window.SUPABASE_ANON_KEY === 'undefined') {
   console.error('ERROR: config.js did not load! window.SUPABASE_URL or window.SUPABASE_ANON_KEY are undefined');
@@ -15,7 +15,7 @@ if (typeof window.SUPABASE_URL === 'undefined' || typeof window.SUPABASE_ANON_KE
   console.log('✓ Config loaded: SUPABASE_URL=' + window.SUPABASE_URL);
 }
 
-
+const PRODUCTS = [
   "Arnott's Shapes Chicken",
   "Arnott's Shapes BBQ",
   "Arnott's Shapes Pizza",
