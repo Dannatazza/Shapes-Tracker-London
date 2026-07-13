@@ -23,14 +23,7 @@ RETURNS void LANGUAGE sql AS $$
   DELETE FROM public.logs WHERE loggedAt < now() - interval '24 hours';
 $$;
 
--- Try to schedule the cleanup using pg_cron if available. This block is safe if pg_cron is not installed.
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'schedule' AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'cron')) THEN
-    -- schedule to run at minute 0 every hour
-    PERFORM cron.schedule('cleanup_old_logs', '0 * * * *', $$CALL public.delete_old_logs();$$);
-  END IF;
-END
-$$;
+-- Scheduling via pg_cron is optional. Install/enable pg_cron in project if you want automated scheduling.
+-- Alternatively, trigger delete_old_logs() from an external scheduler or Supabase 'Scheduled Functions'.
 
 COMMIT;
