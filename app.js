@@ -197,8 +197,8 @@ async function initFromServer() {
 
   async function fetchFromSupabaseLogs() {
     const since = new Date(Date.now() - RECENT_WINDOW_MS).toISOString();
-    // loggedAt=gte.<iso>
-    const q = `loggedAt=gte.${encodeURIComponent(since)}&order=loggedAt.desc`;
+    // loggedat=gte.<iso>
+    const q = `loggedat=gte.${encodeURIComponent(since)}&order=loggedat.desc`;
     const url = `${window.SUPABASE_URL}/rest/v1/logs?select=*&${q}`;
     const headers = {
       apikey: window.SUPABASE_ANON_KEY,
@@ -216,7 +216,7 @@ async function initFromServer() {
         const [supStores, supLogs] = await Promise.all([fetchFromSupabaseStores(), fetchFromSupabaseLogs()]);
         if (Array.isArray(supStores) && supStores.length) stores = supStores;
         if (Array.isArray(supLogs)) {
-          state.logs = supLogs.map((l) => ({ ...l, loggedAt: l.loggedAt }));
+          state.logs = supLogs.map((l) => ({ ...l, loggedAt: l.loggedat }));
           saveLogs(state.logs);
           updateRecentLogsCache();
         }
