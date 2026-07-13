@@ -183,13 +183,13 @@ const elements = {
 // Try to load stores and recent logs from a central backend.
 // Priority: Supabase (client-side) if configured via config.js, otherwise project server API (/api), else use embedded data/localStorage.
 async function initFromServer() {
+  console.log("DEBUG: Supabase URL=", window.SUPABASE_URL, "Key=", window.SUPABASE_ANON_KEY ? "set" : "missing");
   // Helper to fetch from Supabase REST API
   async function fetchFromSupabaseStores() {
     const url = `${window.SUPABASE_URL}/rest/v1/stores?select=*`;
     const headers = {
       apikey: window.SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${window.SUPABASE_ANON_KEY}`,
-    };
+          };
     const resp = await fetch(url, { headers });
     if (!resp.ok) throw new Error('Supabase stores fetch failed');
     return resp.json();
@@ -202,8 +202,7 @@ async function initFromServer() {
     const url = `${window.SUPABASE_URL}/rest/v1/logs?select=*&${q}`;
     const headers = {
       apikey: window.SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${window.SUPABASE_ANON_KEY}`,
-    };
+          };
     const resp = await fetch(url, { headers });
     if (!resp.ok) throw new Error('Supabase logs fetch failed');
     return resp.json();
@@ -407,8 +406,7 @@ async function logAvailability(storeId) {
         'Content-Type': 'application/json',
         Prefer: 'return=representation',
         apikey: window.SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${window.SUPABASE_ANON_KEY}`,
-      };
+              };
       const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(newLogs) });
       if (!resp.ok) throw new Error('supabase insert failed');
       persisted = true;
