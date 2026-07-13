@@ -4,7 +4,9 @@
   "description": "A community-based stock tracker for Arnott's Shapes biscuits at Waitrose and Morrisons stores in London. Vibe coded with love ❤️.",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "smoke": "node tests/playwright-click-test.js"
   },
   "keywords": [],
   "author": "",

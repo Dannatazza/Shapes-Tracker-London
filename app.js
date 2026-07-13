@@ -7,7 +7,7 @@ const PRODUCTS = [
   "Arnott's Shapes Pizza",
 ];
 
-const stores = [
+let stores = [
   {
     id: "waitrose-kings-road",
     brand: "Waitrose",
@@ -180,6 +180,33 @@ const elements = {
   popupTemplate: document.querySelector("#popup-template"),
 };
 
+// Try to load stores and recent logs from the server. Fall back to embedded data/localStorage when unavailable.
+async function initFromServer() {
+  try {
+    const storesResp = await fetch('/api/stores');
+    if (storesResp.ok) {
+      const serverStores = await storesResp.json();
+      if (Array.isArray(serverStores) && serverStores.length) {
+        stores = serverStores;
+      }
+    }
+
+    const logsResp = await fetch('/api/logs?hours=24');
+    if (logsResp.ok) {
+      const serverLogs = await logsResp.json();
+      if (Array.isArray(serverLogs)) {
+        state.logs = serverLogs;
+        saveLogs(state.logs); // keep local cache in sync
+        updateRecentLogsCache();
+      }
+    }
+  } catch (err) {
+    // network unavailable, continue with embedded data and localStorage
+    // console.warn('server unavailable, using local data');
+  }
+}
+
+
 const state = {
   logs: loadLogs(),
   selectedStoreId: null,
@@ -215,7 +242,8 @@ elements.logButton.addEventListener("click", () => {
   }
 });
 
-render();
+// Initialize from server, then render
+initFromServer().finally(() => render());
 
 function selectStore(storeId) {
   state.selectedStoreId = storeId;
@@ -227,7 +255,7 @@ function selectStore(storeId) {
   marker.bindPopup(createPopup(store)).openPopup();
 }
 
-function logAvailability(storeId) {
+async function logAvailability(storeId) {
   const store = getStore(storeId);
   const selectedProducts = getSelectedProducts();
 
@@ -248,7 +276,21 @@ function logAvailability(storeId) {
   state.logs.unshift(...newLogs);
   resetFlavourInputs();
 
-  saveLogs(state.logs);
+  // Try to post logs to server; fall back to localStorage when offline
+  try {
+    const resp = await fetch('/api/logs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newLogs),
+    });
+
+    if (!resp.ok) throw new Error('server error');
+  } catch (err) {
+    // server failed, persist locally
+    saveLogs(state.logs);
+  }
+
+  // keep local cache up to date
   updateRecentLogsCache();
   render();
 
