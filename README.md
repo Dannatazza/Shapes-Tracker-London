@@ -1,7 +1,7 @@
-# London Supermarket Stock Watch
+# Shapes Tracker London
 
-A lightweight static web app for community members to log availability of
-Arnott's Shapes biscuits at Waitrose and Morrisons stores in London.
+A community-based stock tracker for Arnott's Shapes biscuits at Waitrose and
+Morrisons stores in London.
 
 ## How it works
 
