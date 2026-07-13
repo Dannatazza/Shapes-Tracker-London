@@ -233,6 +233,13 @@ stores.forEach((store) => {
   }).addTo(map);
 
   marker.on("click", () => selectStore(store.id));
+
+  // Ensure popup content is refreshed when opened so recent logs display correctly
+  marker.on('popupopen', () => {
+    const popup = marker.getPopup();
+    if (popup) popup.setContent(createPopup(store));
+  });
+
   state.markers.set(store.id, marker);
 });
 
