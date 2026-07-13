@@ -171,8 +171,6 @@ const stores = [
 ];
 
 const elements = {
-  inStockCount: document.querySelector("#in-stock-count"),
-  storeCount: document.querySelector("#store-count"),
   selectedStoreName: document.querySelector("#selected-store-name"),
   selectedStoreAddress: document.querySelector("#selected-store-address"),
   selectedStoreStatus: document.querySelector("#selected-store-status"),
@@ -186,7 +184,11 @@ const state = {
   logs: loadLogs(),
   selectedStoreId: null,
   markers: new Map(),
+  recentLogsCache: null,
 };
+
+// populate initial recent-logs cache (function declared later)
+updateRecentLogsCache();
 
 const map = L.map("map", {
   scrollWheelZoom: true,
@@ -207,7 +209,6 @@ stores.forEach((store) => {
   state.markers.set(store.id, marker);
 });
 
-elements.storeCount.textContent = stores.length;
 elements.logButton.addEventListener("click", () => {
   if (state.selectedStoreId) {
     logAvailability(state.selectedStoreId);
@@ -248,21 +249,37 @@ function logAvailability(storeId) {
   resetFlavourInputs();
 
   saveLogs(state.logs);
+  updateRecentLogsCache();
   render();
 
   const marker = state.markers.get(storeId);
-  marker.bindPopup(createPopup(store)).openPopup();
+  const popup = marker.getPopup();
+  if (popup) {
+    popup.setContent(createPopup(store));
+    marker.openPopup();
+  } else {
+    marker.bindPopup(createPopup(store)).openPopup();
+  }
 }
 
 function render() {
+  // ensure recent cache is up to date for fast repeated queries
+  updateRecentLogsCache();
+
   stores.forEach((store) => {
     const marker = state.markers.get(store.id);
     marker.setIcon(createStoreIcon(store, isStoreInStock(store.id)));
-    marker.bindPopup(createPopup(store));
+
+    const popup = marker.getPopup();
+    if (popup) {
+      // reuse existing popup instance to avoid unneeded re-binding
+      popup.setContent(createPopup(store));
+    } else {
+      marker.bindPopup(createPopup(store));
+    }
   });
 
   renderSelectedStore();
-  renderStats();
 }
 
 function renderSelectedStore() {
@@ -284,10 +301,6 @@ function renderSelectedStore() {
   setStatusPill(elements.selectedStoreStatus, "Select in-stock flavours below", "neutral");
 }
 
-function renderStats() {
-  const inStockStoreCount = stores.filter((store) => isStoreInStock(store.id)).length;
-  elements.inStockCount.textContent = inStockStoreCount;
-}
 
 function createPopup(store) {
   const popup = elements.popupTemplate.content.cloneNode(true);
@@ -336,12 +349,22 @@ function isStoreInStock(storeId) {
   return getRecentProductsForStore(storeId).length > 0;
 }
 
+function updateRecentLogsCache() {
+  try {
+    const now = Date.now();
+    state.recentLogsCache = state.logs
+      .filter((log) => PRODUCTS.includes(log.product))
+      .filter((log) => now - new Date(log.loggedAt).getTime() < RECENT_WINDOW_MS)
+      .sort((a, b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime());
+  } catch {
+    state.recentLogsCache = [];
+  }
+}
+
 function getRecentLogs() {
-  const now = Date.now();
-  return state.logs
-    .filter((log) => PRODUCTS.includes(log.product))
-    .filter((log) => now - new Date(log.loggedAt).getTime() < RECENT_WINDOW_MS)
-    .sort((first, second) => new Date(second.loggedAt).getTime() - new Date(first.loggedAt).getTime());
+  if (state.recentLogsCache) return state.recentLogsCache;
+  updateRecentLogsCache();
+  return state.recentLogsCache;
 }
 
 function getRecentProductsForStore(storeId) {
