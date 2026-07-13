@@ -206,6 +206,15 @@ async function initFromServer() {
   }
 }
 
+// Global handler to log unhandled promise rejections for debugging
+window.addEventListener('unhandledrejection', (event) => {
+  try {
+    console.error('Unhandled promise rejection:', event.reason);
+  } catch (e) {
+    // ignore
+  }
+});
+
 
 const state = {
   logs: loadLogs(),
@@ -253,7 +262,11 @@ stores.forEach((store) => {
           // visual debug flash
           inner.classList.add('debug-clicked');
           setTimeout(() => inner.classList.remove('debug-clicked'), 400);
-          selectStore(store.id);
+          try {
+            selectStore(store.id);
+          } catch (e) {
+            console.error('selectStore call failed from inner click', e);
+          }
         });
       }
     }
@@ -279,14 +292,36 @@ if (location.protocol === 'file:') {
 }
 
 function selectStore(storeId) {
-  console.info('selectStore called', storeId);
-  state.selectedStoreId = storeId;
-  resetFlavourInputs();
-  render();
+  try {
+    console.info('selectStore called', storeId);
+    state.selectedStoreId = storeId;
+    resetFlavourInputs();
+    render();
 
-  const store = getStore(storeId);
-  const marker = state.markers.get(storeId);
-  marker.bindPopup(createPopup(store)).openPopup();
+    const store = getStore(storeId);
+    const marker = state.markers.get(storeId);
+
+    // Build popup content and try to bind/open safely
+    const popupContent = createPopup(store);
+    try {
+      // Unbind any existing popup to avoid stale state
+      try { marker.unbindPopup(); } catch (e) {}
+      marker.bindPopup(popupContent);
+      marker.openPopup();
+    } catch (err) {
+      console.error('Failed to open popup on marker:', err);
+      // Fallback: attempt open after a short delay in case Safari needs layout
+      setTimeout(() => {
+        try {
+          marker.openPopup();
+        } catch (e) {
+          console.error('Fallback openPopup failed', e);
+        }
+      }, 50);
+    }
+  } catch (err) {
+    console.error('selectStore error', err);
+  }
 }
 
 async function logAvailability(storeId) {
