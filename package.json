@@ -1,0 +1,23 @@
+{
+  "name": "dannatazza-laughing-succotash",
+  "version": "1.0.0",
+  "description": "A community-based stock tracker for Arnott's Shapes biscuits at Waitrose and Morrisons stores in London. Vibe coded with love ❤️.",
+  "main": "app.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "smoke": "node tests/playwright-click-test.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "eslint": "^10.7.0",
+    "playwright": "^1.61.1"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "express": "^5.2.1"
+  }
+}

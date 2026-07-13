@@ -1,13 +1,27 @@
+// Supabase configuration (embedded to ensure it loads before use)
+window.SUPABASE_URL = 'https://ynypllnmittjtzoiijni.supabase.co';
+window.SUPABASE_ANON_KEY = 'sb_publishable_RHMSe_WXgaMbQIpgvkuHyQ_THGbneOp';
+
+console.log('✓ Supabase config loaded:', window.SUPABASE_URL);
+
 const RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const STORAGE_KEY = "london-supermarket-stock-logs";
 const LEGACY_STORAGE_KEY = "waitrose-london-stock-logs";
 const PRODUCTS = [
+// Verify config.js loaded before using Supabase credentials
+if (typeof window.SUPABASE_URL === 'undefined' || typeof window.SUPABASE_ANON_KEY === 'undefined') {
+  console.error('ERROR: config.js did not load! window.SUPABASE_URL or window.SUPABASE_ANON_KEY are undefined');
+} else {
+  console.log('✓ Config loaded: SUPABASE_URL=' + window.SUPABASE_URL);
+}
+
+
   "Arnott's Shapes Chicken",
   "Arnott's Shapes BBQ",
   "Arnott's Shapes Pizza",
 ];
 
-const stores = [
+let stores = [
   {
     id: "waitrose-kings-road",
     brand: "Waitrose",
@@ -171,8 +185,6 @@ const stores = [
 ];
 
 const elements = {
-  inStockCount: document.querySelector("#in-stock-count"),
-  storeCount: document.querySelector("#store-count"),
   selectedStoreName: document.querySelector("#selected-store-name"),
   selectedStoreAddress: document.querySelector("#selected-store-address"),
   selectedStoreStatus: document.querySelector("#selected-store-status"),
@@ -182,11 +194,95 @@ const elements = {
   popupTemplate: document.querySelector("#popup-template"),
 };
 
+// Try to load stores and recent logs from a central backend.
+// Priority: Supabase (client-side) if configured via config.js, otherwise project server API (/api), else use embedded data/localStorage.
+async function initFromServer() {
+  console.log("DEBUG: Supabase URL=", window.SUPABASE_URL, "Key=", window.SUPABASE_ANON_KEY ? "set" : "missing");
+  // Helper to fetch from Supabase REST API
+  async function fetchFromSupabaseStores() {
+    const url = `${window.SUPABASE_URL}/rest/v1/stores?select=*`;
+    const headers = {
+      apikey: window.SUPABASE_ANON_KEY,
+          };
+    const resp = await fetch(url, { headers });
+    if (!resp.ok) throw new Error('Supabase stores fetch failed');
+    return resp.json();
+  }
+
+  async function fetchFromSupabaseLogs() {
+    const since = new Date(Date.now() - RECENT_WINDOW_MS).toISOString();
+    // loggedat=gte.<iso>
+    const q = `loggedat=gte.${encodeURIComponent(since)}&order=loggedat.desc`;
+    const url = `${window.SUPABASE_URL}/rest/v1/logs?select=*&${q}`;
+    const headers = {
+      apikey: window.SUPABASE_ANON_KEY,
+          };
+    const resp = await fetch(url, { headers });
+    if (!resp.ok) throw new Error('Supabase logs fetch failed');
+    return resp.json();
+  }
+
+  try {
+    if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+      console.log("Attempting Supabase INSERT to", window.SUPABASE_URL + "/rest/v1/logs");
+      // Use Supabase
+      try {
+        const [supStores, supLogs] = await Promise.all([fetchFromSupabaseStores(), fetchFromSupabaseLogs()]);
+        if (Array.isArray(supStores) && supStores.length) stores = supStores;
+        if (Array.isArray(supLogs)) {
+          state.logs = supLogs.map((l) => ({ ...l, loggedAt: l.loggedat }));
+          saveLogs(state.logs);
+          updateRecentLogsCache();
+        }
+        return;
+      } catch (e) {
+        console.warn('Supabase fetch failed, falling back to server API', e);
+      }
+    }
+
+    // fallback to server endpoints (when hosted with our Express server)
+    const storesResp = await fetch('/api/stores');
+    if (storesResp.ok) {
+      const serverStores = await storesResp.json();
+      if (Array.isArray(serverStores) && serverStores.length) {
+        stores = serverStores;
+      }
+    }
+
+    const logsResp = await fetch('/api/logs?hours=24');
+    if (logsResp.ok) {
+      const serverLogs = await logsResp.json();
+      if (Array.isArray(serverLogs)) {
+        state.logs = serverLogs;
+        saveLogs(state.logs); // keep local cache in sync
+        updateRecentLogsCache();
+      }
+    }
+  } catch (err) {
+    // network unavailable, continue with embedded data and localStorage
+    // console.warn('server unavailable, using local data');
+  }
+}
+
+// Global handler to log unhandled promise rejections for debugging
+window.addEventListener('unhandledrejection', (event) => {
+  try {
+    console.error('Unhandled promise rejection:', event.reason);
+  } catch (e) {
+    // ignore
+  }
+});
+
+
 const state = {
   logs: loadLogs(),
   selectedStoreId: null,
   markers: new Map(),
+  recentLogsCache: null,
 };
+
+// populate initial recent-logs cache (function declared later)
+updateRecentLogsCache();
 
 const map = L.map("map", {
   scrollWheelZoom: true,
@@ -204,29 +300,89 @@ stores.forEach((store) => {
   }).addTo(map);
 
   marker.on("click", () => selectStore(store.id));
+
+  // Ensure popup content is refreshed when opened so recent logs display correctly
+  marker.on('popupopen', () => {
+    const popup = marker.getPopup();
+    if (popup) popup.setContent(createPopup(store));
+  });
+
+  // Safari sometimes doesn't bubble clicks from inner divs to the marker.
+  // Attach a click handler directly to the rendered marker element when it's added to the map.
+  marker.on('add', () => {
+    const el = marker.getElement();
+    if (el) {
+      const inner = el.querySelector('.store-marker');
+      if (inner) {
+        inner.addEventListener('click', (ev) => {
+          console.info('marker-inner clicked', store.id);
+          ev.stopPropagation();
+          // visual debug flash
+          inner.classList.add('debug-clicked');
+          setTimeout(() => inner.classList.remove('debug-clicked'), 400);
+          try {
+            selectStore(store.id);
+          } catch (e) {
+            console.error('selectStore call failed from inner click', e);
+          }
+        });
+      }
+    }
+  });
+
   state.markers.set(store.id, marker);
 });
 
-elements.storeCount.textContent = stores.length;
 elements.logButton.addEventListener("click", () => {
   if (state.selectedStoreId) {
     logAvailability(state.selectedStoreId);
   }
 });
 
-render();
-
-function selectStore(storeId) {
-  state.selectedStoreId = storeId;
-  resetFlavourInputs();
+// If the page is served via file:// (e.g., opened directly), skip server fetches
+// because browsers block cross-origin requests from file:// origins.
+if (location.protocol === 'file:') {
+  // Render using embedded data and any localStorage cache
   render();
-
-  const store = getStore(storeId);
-  const marker = state.markers.get(storeId);
-  marker.bindPopup(createPopup(store)).openPopup();
+} else {
+  // Running over HTTP(S) — attempt to initialize from the server then render
+  initFromServer().finally(() => render());
 }
 
-function logAvailability(storeId) {
+function selectStore(storeId) {
+  try {
+    console.info('selectStore called', storeId);
+    state.selectedStoreId = storeId;
+    resetFlavourInputs();
+    render();
+
+    const store = getStore(storeId);
+    const marker = state.markers.get(storeId);
+
+    // Build popup content and try to bind/open safely
+    const popupContent = createPopup(store);
+    try {
+      // Unbind any existing popup to avoid stale state
+      try { marker.unbindPopup(); } catch (e) {}
+      marker.bindPopup(popupContent);
+      marker.openPopup();
+    } catch (err) {
+      console.error('Failed to open popup on marker:', err);
+      // Fallback: attempt open after a short delay in case Safari needs layout
+      setTimeout(() => {
+        try {
+          marker.openPopup();
+        } catch (e) {
+          console.error('Fallback openPopup failed', e);
+        }
+      }, 50);
+    }
+  } catch (err) {
+    console.error('selectStore error', err);
+  }
+}
+
+async function logAvailability(storeId) {
   const store = getStore(storeId);
   const selectedProducts = getSelectedProducts();
 
@@ -239,30 +395,90 @@ function logAvailability(storeId) {
   const newLogs = selectedProducts.map((product) => ({
     id: `${storeId}-${product}-${Date.now()}`,
     product,
+    storeid: storeId,
+    storename: store.name,
+    loggedat: loggedAt,
+  }));
+
+  // For local state, use camelCase
+  const logsForState = selectedProducts.map((product) => ({
+    id: `${storeId}-${product}-${Date.now()}`,
+    product,
     storeId,
     storeName: store.name,
     loggedAt,
   }));
 
-  state.logs.unshift(...newLogs);
+  state.logs.unshift(...logsForState);
   resetFlavourInputs();
 
-  saveLogs(state.logs);
+  // Try to post logs to a central backend. Prefer Supabase if configured, then project server, else fallback to localStorage.
+  let persisted = false;
+  if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+      console.log("Attempting Supabase INSERT to", window.SUPABASE_URL + "/rest/v1/logs");
+    try {
+      const url = `${window.SUPABASE_URL}/rest/v1/logs`;
+      const headers = {
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+        apikey: window.SUPABASE_ANON_KEY,
+              };
+      const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(newLogs) });
+      if (!resp.ok) throw new Error('supabase insert failed');
+      console.log("Supabase INSERT succeeded!"); persisted = true;
+    } catch (e) {
+      console.warn('Supabase insert failed, falling back to server/local', e);
+    }
+  }
+
+  if (!persisted) {
+    try {
+      const resp = await fetch('/api/logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newLogs),
+      });
+
+      if (!resp.ok) throw new Error('server error');
+      persisted = true;
+    } catch (err) {
+      // server failed, persist locally
+      saveLogs(state.logs);
+    }
+  }
+
+  // keep local cache up to date
+  updateRecentLogsCache();
   render();
 
   const marker = state.markers.get(storeId);
-  marker.bindPopup(createPopup(store)).openPopup();
+  const popup = marker.getPopup();
+  if (popup) {
+    popup.setContent(createPopup(store));
+    marker.openPopup();
+  } else {
+    marker.bindPopup(createPopup(store)).openPopup();
+  }
 }
 
 function render() {
+  // ensure recent cache is up to date for fast repeated queries
+  updateRecentLogsCache();
+
   stores.forEach((store) => {
     const marker = state.markers.get(store.id);
     marker.setIcon(createStoreIcon(store, isStoreInStock(store.id)));
-    marker.bindPopup(createPopup(store));
+
+    const popup = marker.getPopup();
+    if (popup) {
+      // reuse existing popup instance to avoid unneeded re-binding
+      popup.setContent(createPopup(store));
+    } else {
+      marker.bindPopup(createPopup(store));
+    }
   });
 
   renderSelectedStore();
-  renderStats();
 }
 
 function renderSelectedStore() {
@@ -284,10 +500,6 @@ function renderSelectedStore() {
   setStatusPill(elements.selectedStoreStatus, "Select in-stock flavours below", "neutral");
 }
 
-function renderStats() {
-  const inStockStoreCount = stores.filter((store) => isStoreInStock(store.id)).length;
-  elements.inStockCount.textContent = inStockStoreCount;
-}
 
 function createPopup(store) {
   const popup = elements.popupTemplate.content.cloneNode(true);
@@ -336,12 +548,22 @@ function isStoreInStock(storeId) {
   return getRecentProductsForStore(storeId).length > 0;
 }
 
+function updateRecentLogsCache() {
+  try {
+    const now = Date.now();
+    state.recentLogsCache = state.logs
+      .filter((log) => PRODUCTS.includes(log.product))
+      .filter((log) => now - new Date(log.loggedAt).getTime() < RECENT_WINDOW_MS)
+      .sort((a, b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime());
+  } catch {
+    state.recentLogsCache = [];
+  }
+}
+
 function getRecentLogs() {
-  const now = Date.now();
-  return state.logs
-    .filter((log) => PRODUCTS.includes(log.product))
-    .filter((log) => now - new Date(log.loggedAt).getTime() < RECENT_WINDOW_MS)
-    .sort((first, second) => new Date(second.loggedAt).getTime() - new Date(first.loggedAt).getTime());
+  if (state.recentLogsCache) return state.recentLogsCache;
+  updateRecentLogsCache();
+  return state.recentLogsCache;
 }
 
 function getRecentProductsForStore(storeId) {
