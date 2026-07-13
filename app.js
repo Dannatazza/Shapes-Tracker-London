@@ -427,6 +427,7 @@ async function logAvailability(storeId) {
       if (!resp.ok) throw new Error('supabase insert failed');
       console.log("Supabase INSERT succeeded!"); persisted = true;
     } catch (e) {
+      console.error('❌ Supabase INSERT error:', e.message || e);
       console.warn('Supabase insert failed, falling back to server/local', e);
     }
   }
