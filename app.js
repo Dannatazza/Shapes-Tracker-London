@@ -227,26 +227,28 @@ async function initFromServer() {
       console.log("Attempting Supabase INSERT to", window.SUPABASE_URL + "/rest/v1/logs");
       // Use Supabase
       try {
-        const [supStores, supLogs] = await Promise.all([fetchFromSupabaseStores(), fetchFromSupabaseLogs()]);
-        if (Array.isArray(supStores) && supStores.length) stores = supStores;
-        if (Array.isArray(supLogs)) {
-          // Normalize Supabase column names (lowercased) to the app's camelCase shape
-          state.logs = supLogs.map((l) => ({
-            id: l.id,
-            product: l.product,
-            storeId: l.storeid ?? l.storeId,
-            storeName: l.storename ?? l.storeName,
-            loggedAt: l.loggedat ?? l.loggedAt,
-          }));
-          console.log(`Supabase fetched ${supLogs.length} logs; updating local cache with ${state.logs.length} normalized entries.`);
-          saveLogs(state.logs);
-          updateRecentLogsCache();
-        }
+         console.log('DEBUG: initiating Supabase stores+logs fetch');
+         const [supStores, supLogs] = await Promise.all([fetchFromSupabaseStores(), fetchFromSupabaseLogs()]);
+         console.log('DEBUG: Supabase fetches resolved', { storesCount: Array.isArray(supStores) ? supStores.length : 0, logsCount: Array.isArray(supLogs) ? supLogs.length : 0 });
+         if (Array.isArray(supStores) && supStores.length) stores = supStores;
+         if (Array.isArray(supLogs)) {
+           // Normalize Supabase column names (lowercased) to the app's camelCase shape
+           state.logs = supLogs.map((l) => ({
+             id: l.id,
+             product: l.product,
+             storeId: l.storeid ?? l.storeId,
+             storeName: l.storename ?? l.storeName,
+             loggedAt: l.loggedat ?? l.loggedAt,
+           }));
+           console.log(`Supabase fetched ${supLogs.length} logs; updating local cache with ${state.logs.length} normalized entries.`);
+           saveLogs(state.logs);
+           updateRecentLogsCache();
+         }
         return;
       } catch (e) {
-        console.warn('Supabase fetch failed, falling back to server API', e);
+         console.error('Supabase fetch failed, falling back to server API', e && (e.message || e));
       }
-    }
+     }
 
     // fallback to server endpoints (when hosted with our Express server)
     const storesResp = await fetch('/api/stores');
