@@ -238,6 +238,7 @@ async function initFromServer() {
             storeName: l.storename ?? l.storeName,
             loggedAt: l.loggedat ?? l.loggedAt,
           }));
+          console.log(`Supabase fetched ${supLogs.length} logs; updating local cache with ${state.logs.length} normalized entries.`);
           saveLogs(state.logs);
           updateRecentLogsCache();
         }
